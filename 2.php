@@ -48,4 +48,35 @@ echo "<h4>Вариант 2</h4>" . convertString2($str, $subStr);
 
 echo "<hr>";
 
+//mySortForKey($a, $b). $a – двумерный массив вида [['a'=>2,'b'=>1],['a'=>1,'b'=>3]], 
+//$b – ключ вложенного массива. Результат ее выполнения: двумерном массива $a отсортированный по возрастанию значений для ключа $b. 
+//В случае отсутствия ключа $b в одном из вложенных массивов, выбросить ошибку класса Exception с индексом неправильного массива.
 
+$a = [['a' => 2, 'b' => 1], ['a' => 1, 'b' => 3], ['a' => 4, 'b' => 2]];
+$b = 'b';
+echo "<h4>Массив до</h4>";
+var_dump($a);
+
+function mySortForKey(array &$a, string $b) {
+    
+    foreach ($a as $key=>$value) {
+        try {
+            if (!array_key_exists($GLOBALS['b'], $value)) {
+                throw new Exception('неправильный индекс массива: ' . $key);
+            }
+        } catch (Exception $e) {
+            echo $e->getMessage();
+            return;
+        }
+    }
+    
+    usort($a, function($a, $b) {
+        return $a[$GLOBALS['b']] <=> $b[$GLOBALS['b']];
+    });
+    return $a;
+}
+echo "<h4>Массив после</h4>";
+
+var_dump(mySortForKey($a, $b));
+
+echo "<hr>";
