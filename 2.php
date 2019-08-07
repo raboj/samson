@@ -11,7 +11,7 @@ $subStr = 'яблоко';
 //$str='pear apple pear apple pear apple';
 //$subStr='apple';
 
-function strRever($str) {
+function strRever(string $str) {
 //был вариант с циклом и конкатенацией в обратном порядке, но громоздко...
 //strrev - не работает с русскими символами
     $bArr = preg_split('//u', $str, NULL, PREG_SPLIT_NO_EMPTY);
@@ -104,7 +104,7 @@ function preExec(string $sql, array $arr = []) {
     return $stmt = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function importXml($a) {
+function importXml(string $a) {
     $countProduct = 0;
     if (is_readable($a)) {
         $products = simplexml_load_file($a);
@@ -236,7 +236,7 @@ function exportXml(string $a, int $keyCat) {
     }
 
     //выбираем нужную категорию с потомками
-    function getCategoryId($arr) {
+    function getCategoryId(array $arr) {
         $result = '';
         foreach ($arr as $key => $value) {
             if ($key == 'id') {
