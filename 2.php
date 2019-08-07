@@ -186,3 +186,139 @@ function importXml($a) {
 
 importXml('importToDb.xml');
 
+echo '<hr>';
+
+echo '<p>Реализовать функцию exportXml($a, $b). $a – путь к xml файлу вида (структура файла приведена ниже), 
+//$b – код рубрики. Результат ее выполнения: выбрать из БД товары (и их характеристики, необходимые для формирования файла) 
+//выходящие в рубрику $b или в любую из всех вложенных в нее рубрик, сохранить результат в файл $a.<p>';
+
+function exportXml(string $a, int $keyCat) {
+//выбираем id категорий с потомками
+    $sql = "SELECT * FROM `a_category`";
+    $categoryTb = preExec($sql);
+
+//строим типа "дерево"  
+    function keyToId(array $arr) {
+        $cat = array();
+        foreach ($arr as $value) {
+            $cat[$value['id']] = $value;
+        }
+        return $cat;
+    }
+
+    function getTree(array $arr) {
+        $tree = array();
+        foreach ($arr as $id => &$node) {
+            //Если нет вложений
+            if (!$node['id_parent']) {
+                $tree[$id] = &$node;
+            } else {
+                //Если есть потомки то перебераем массив
+                $arr[$node['id_parent']]['childs'][$id] = &$node;
+            }
+        }
+        return $tree;
+    }
+
+//выбираем нужную категорию с потомками
+    function getCategory(array $arr, string $idCat) {
+        $result = array();
+        foreach ($arr as $key => $value) {
+            if (@$value['id'] == $idCat)
+                $result = $value;
+            else if (is_array($arr[$key])) {
+                $ret = getCategory($value, $idCat);
+                if (count($ret))
+                    $result = $ret;
+            }
+        }
+        return $result;
+    }
+
+    //выбираем нужную категорию с потомками
+    function getCategoryId($arr) {
+        $result = '';
+        foreach ($arr as $key => $value) {
+            if ($key == 'id') {
+                $result .= $value . ',';
+            } else if (is_array($arr[$key])) {
+                $ret = getCategoryId($value);
+                if (count($ret))
+                    $result .= $ret;
+            }
+        }
+        return $result--;
+    }
+
+    $arrCategoryTree = keyToId($categoryTb);
+    $arrCategoryTree = (getTree($arrCategoryTree));
+    $arrCategory = (getCategory($arrCategoryTree, $keyCat));
+
+    $strCategoryId = rtrim(getCategoryId($arrCategory), ',');
+// выбираем товары
+    $sql = "SELECT * FROM `a_product` "
+            . "LEFT JOIN  `a_product_category` ON `a_product`.`id` = `a_product_category`.`id_product` "
+            . "WHERE `a_product_category`.`id_category` IN ($strCategoryId)";
+//    $sql = "SELECT `id`,`name`, `code` FROM `a_product`";
+    $arrProduct = preExec($sql);
+
+    for ($i = 0; $i < count($arrProduct); $i++) {
+        $xmlArr[$i]['product'] = $arrProduct[$i];
+        // выбираем цены
+        $sql = "SELECT * FROM `a_price` WHERE `a_price`.`id_product`=?";
+        $xmlArr[$i]['price'] = preExec($sql, [$arrProduct[$i]['id']]);
+        // выбираем свойства
+        $sql = "SELECT * FROM `a_property` WHERE `id_product`=?";
+        $xmlArr[$i]['property'] = preExec($sql, [$arrProduct[$i]['id']]);
+        //выбираем категории
+        $sql = "SELECT `a_category`.`name`, `a_product_category`.`id_category` AS `id_c`, `a_product_category`.`id_product` AS `id_p`"
+                . "FROM a_product_category "
+                . "LEFT JOIN  a_product ON a_product.id = a_product_category.id_product "
+                . "LEFT JOIN  a_category ON a_category.id = a_product_category.id_category "
+                . "WHERE a_product_category.id_product={$arrProduct[$i]['id']}";
+        $xmlArr[$i]['category'] = (preExec($sql));
+    }
+    // создаем XML
+    $xml_header = '<?xml version="1.0" encoding="UTF-8"?><Товары></Товары>';
+    $xml = new SimpleXMLElement($xml_header, null, false);
+    for ($i = 0; $i < count($xmlArr); $i++) {
+        $xml->addChild("Товар");
+        $xml->Товар[$i]->addAttribute('Код', $xmlArr[$i]['product']['code']);
+        $xml->Товар[$i]->addAttribute('Название', $xmlArr[$i]['product']['name']);
+        for ($k = 0; $k < count($xmlArr[$i]['price']); $k++) {
+            $xml->Товар[$i]->addChild("Цена", $xmlArr[$i]['price'][$k]['price']);
+            $xml->Товар[$i]->Цена[$k]->addAttribute('Тип', $xmlArr[$i]['price'][$k]['price_type']);
+        }
+        $xml->Товар[$i]->addChild("Свойства");
+        for ($k = 0; $k < count($xmlArr[$i]['property']); $k++) {
+            $xml->Товар[$i]->Свойства->addChild($xmlArr[$i]['property'][$k]['property'], $xmlArr[$i]['property'][$k]['value']);
+            $prpTmp = $xmlArr[$i]['property'][$k]['property'];
+            if ($xmlArr[$i]['property'][$k]['atribut_property']) {
+                $xml->Товар[$i]->Свойства->$prpTmp->addAttribute($xmlArr[$i]['property'][$k]['atribut_property'], $xmlArr[$i]['property'][$k]['atribut_value']);
+            }
+        }
+        //добавляем разделы
+        $xml->Товар[$i]->addChild("Разделы");
+        for ($k = 0; $k < count($xmlArr[$i]['category']); $k++) {
+            $xml->Товар[$i]->Разделы->addChild('Раздел', $xmlArr[$i]['category'][$k]['name']);
+        }
+    }
+    //сохраняем
+    if (!$xml->saveXML($a)) {
+        echo "<p style=\"color:red\">Не удалось сохранить XML в файл \"$a\"</p>";
+    } else {
+        echo "<p>Данные сохранены в файл \"$a\"</p>";
+    };
+}
+
+exportXml('exportFromDb.xml', '201');
+
+
+//    Создать в БД таблицу a_property с колонками для хранения свойства товаров: товар, значение свойства. 
+//    В образце XML есть "имя свойства" и "значение свойства", я еще добавил id_product
+//    Создать в БД таблицу a_category с колонками для хранения рубрик: ид, код, название.
+//    что хранить в 'a_category'.'код'? В XML данных нет...
+// добавить в свойство еденицу измерения <Белизна ЕдИзм="%">100</Белизна>, в структуре БД этого нет((
+// кодироваку оставил UTF-8, какие-то проблемы, возможно у меня на машине...
+
+
