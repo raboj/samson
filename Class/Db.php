@@ -17,7 +17,8 @@ class Db {
     }
 
     public static function __callStatic($method, $args) {
-        echo "__callStatic, method $method, args $args";
+         echo "Вызов недоступного статического метода '$method' "
+             . implode(', ', $args). "\n";
     }
 
     public static function getPdo() {

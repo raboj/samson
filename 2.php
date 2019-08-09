@@ -1,5 +1,12 @@
 <?php
 
+ini_set('error_reporting', E_ALL);
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+
+require_once 'Class/Db.php';
+$Pdo=Db::getPdo();
+
 //echo '<pre>';
 
 echo '<p>convertString($a, $b). Результат ее выполнение: если в строке $a содержится 2 и более подстроки $b, 
@@ -89,27 +96,6 @@ echo "<hr>";
 echo '<p>Реализовать функцию importXml($a). $a – путь к xml файлу (структура файла приведена ниже). 
 Результат ее выполнения: прочитать файл $a и импортировать его в созданную БД.</p><br>';
 
-function db() {
-    $opt = [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false
-    ];
-    try {
-        return new PDO("mysql:host=localhost;dbname=test_samson; charset=UTF8", 'test_samson', '123456', $opt);
-    } catch (PDOException $e) {
-        die('Ошибка подключения к БД: ' . $e->getMessage());
-    }
-}
-
-$pdo = db();
-
-function preExec(string $sql, array $arr = []) {
-    $stmt = $GLOBALS['pdo']->prepare($sql);
-    $stmt->execute($arr);
-    return $stmt = $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
 function importXml(string $a) {
     $countProduct = 0;
     if (is_readable($a)) {
@@ -121,22 +107,22 @@ function importXml(string $a) {
     foreach ($products->Товар as $product) {
         //проеряем существует ли товар с таким кодом
         $sql = "SELECT * FROM `a_product` WHERE `code`=?";
-        $productExist = preExec($sql, (array) $product['Код']);
+        $productExist = Db::preExec($sql, (array) $product['Код']);
         if ($productExist) {
             echo "<p style=\"color:red\">Товар \"{$productExist[0]['name']}\" с кодом \"{$productExist[0]['code']}\" уже существует и не был добавлен<p>";
         } else {
-            $GLOBALS['pdo']->beginTransaction();
+            $Pdo->beginTransaction();
             try {
                 //добавляем товар
                 $producrArr = [NULL, $product['Код'], $product['Название']];
                 $sql = "INSERT INTO `a_product` (`id`, `code`, `name`) VALUES (?, ?, ?)";
-                preExec($sql, $producrArr);
-                $idProduct = $GLOBALS['pdo']->lastInsertId();
+                Db::preExec($sql, $producrArr);
+                $idProduct = $Pdo->lastInsertId();
                 // добавляем цены
                 foreach ($product->Цена as $prices) {
                     $priceArr = [$idProduct, $prices[0]['Тип'], $prices];
                     $sql = "INSERT INTO `a_price`(`id_product`, `price_type`, `price`) VALUES (?, ?, ?)";
-                    preExec($sql, $priceArr);
+                    Db::preExec($sql, $priceArr);
                 }
                 //добавляем свойства
                 foreach ($product->Свойства as $propertys) {
@@ -151,7 +137,7 @@ function importXml(string $a) {
                         }
                         $propertyArr = [$idProduct, $property, (string) $propertyValue, $key, $value];
                         $sql = "INSERT INTO `a_property`(`id_product`, `property`, `value`, `atribut_property`, `atribut_value`) VALUES (?, ?, ?, ?, ?)";
-                        preExec($sql, $propertyArr);
+                        Db::preExec($sql, $propertyArr);
                     }
                 }
                 //добавляем категории, лучше бы они существовали заранее... но, для данной ситуации - добавляем
@@ -159,7 +145,7 @@ function importXml(string $a) {
                 foreach ($product->Разделы->Раздел as $category) {
                     // проверяем, существует ли категория 
                     $sql = "SELECT * FROM `a_category` WHERE `name`='" . (string) $category . "'";
-                    $categoryTb = preExec($sql);
+                    $categoryTb = Db::preExec($sql);
                     if ($categoryTb) {
                         // берем id для связи и запоминаем ее как родителя
                         $idCategory = ($categoryTb[0]['id']);
@@ -168,21 +154,21 @@ function importXml(string $a) {
                         $sql = "INSERT INTO `a_category`(`id`, `id_parent`, `code`, `name`) "
                                 . "VALUES (NULL,?,'',?)";
                         $categoryArr = [$idParentCategory, (string) $category];
-                        preExec($sql, $categoryArr);
-                        $idCategory = $GLOBALS['pdo']->lastInsertId();
+                        Db::preExec($sql, $categoryArr);
+                        $idCategory = $Pdo->lastInsertId();
                         // сохраняем id родителя для следующего раздела товара
                         $idParentCategory = $idCategory;
                     };
                     //делаем связь
                     $sql = "INSERT INTO `a_product_category`(`id_category`, `id_product`) VALUES (?,?)";
-                    preExec($sql, [$idCategory, $idProduct]);
+                    Db::preExec($sql, [$idCategory, $idProduct]);
                 }
             } catch (Exception $e) {
                 echo "Ошибка: " . $e->getMessage();
-                $GLOBALS['pdo']->rollBack();
+                $Pdo->rollBack();
             }
 
-            if ($GLOBALS['pdo']->commit() == TRUE) {
+            if ($Pdo->commit() == TRUE) {
                 $countProduct++;
             }
         }
@@ -201,7 +187,7 @@ echo '<p>Реализовать функцию exportXml($a, $b). $a – пут�
 function exportXml(string $a, int $keyCat) {
 //выбираем id категорий с потомками
     $sql = "SELECT * FROM `a_category`";
-    $categoryTb = preExec($sql);
+    $categoryTb = Db::preExec($sql);
 
 //строим типа "дерево"  
     function keyToId(array $arr) {
@@ -266,23 +252,23 @@ function exportXml(string $a, int $keyCat) {
             . "LEFT JOIN  `a_product_category` ON `a_product`.`id` = `a_product_category`.`id_product` "
             . "WHERE `a_product_category`.`id_category` IN ($strCategoryId)";
 //    $sql = "SELECT `id`,`name`, `code` FROM `a_product`";
-    $arrProduct = preExec($sql);
+    $arrProduct = Db::preExec($sql);
 
     for ($i = 0; $i < count($arrProduct); $i++) {
         $xmlArr[$i]['product'] = $arrProduct[$i];
         // выбираем цены
         $sql = "SELECT * FROM `a_price` WHERE `a_price`.`id_product`=?";
-        $xmlArr[$i]['price'] = preExec($sql, [$arrProduct[$i]['id']]);
+        $xmlArr[$i]['price'] = Db::preExec($sql, [$arrProduct[$i]['id']]);
         // выбираем свойства
         $sql = "SELECT * FROM `a_property` WHERE `id_product`=?";
-        $xmlArr[$i]['property'] = preExec($sql, [$arrProduct[$i]['id']]);
+        $xmlArr[$i]['property'] = Db::preExec($sql, [$arrProduct[$i]['id']]);
         //выбираем категории
         $sql = "SELECT `a_category`.`name`, `a_product_category`.`id_category` AS `id_c`, `a_product_category`.`id_product` AS `id_p`"
                 . "FROM a_product_category "
                 . "LEFT JOIN  a_product ON a_product.id = a_product_category.id_product "
                 . "LEFT JOIN  a_category ON a_category.id = a_product_category.id_category "
                 . "WHERE a_product_category.id_product={$arrProduct[$i]['id']}";
-        $xmlArr[$i]['category'] = (preExec($sql));
+        $xmlArr[$i]['category'] = (Db::preExec($sql));
     }
     // создаем XML
     $xml_header = '<?xml version="1.0" encoding="UTF-8"?><Товары></Товары>';
