@@ -56,10 +56,10 @@ echo "<p>mySortForKey(\$a, \$b). \$a – двумерный массив вид�
 $a = [['a' => 2, 'b' => 1], ['a' => 1, 'b' => 3], ['a' => 4, 'b' => 2]];
 $b = 'b';
 
-function mySortForKey(array &$a, string $b) {
+    function mySortForKey(array &$a, string $b) {
     foreach ($a as $key => $value) {
         try {
-            if (!array_key_exists($GLOBALS['b'], $value)) {
+            if (!array_key_exists($b, $value)) {
                 throw new Exception('неправильный индекс массива: ' . $key);
             }
         } catch (Exception $e) {
@@ -67,9 +67,15 @@ function mySortForKey(array &$a, string $b) {
             return;
         }
     }
-    usort($a, function($a, $b) {
-        return $a[$GLOBALS['b']] <=> $b[$GLOBALS['b']];
-    });
+
+    function sortForKey($key) {
+        return function ($a, $b) use ($key) {
+            return $a[$key] <=> $b[$key];
+        };
+    }
+
+    usort($a, sortForKey($b));
+
     return $a;
 }
 
