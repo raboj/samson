@@ -1,5 +1,5 @@
 <?php
-
+phpinfo();
 //echo '<pre>';
 
 echo '<p>convertString($a, $b). Результат ее выполнение: если в строке $a содержится 2 и более подстроки $b, 
@@ -56,22 +56,25 @@ echo "<p>mySortForKey(\$a, \$b). \$a – двумерный массив вид�
 $a = [['a' => 2, 'b' => 1], ['a' => 1, 'b' => 3], ['a' => 4, 'b' => 2]];
 $b = 'b';
 
-function mySortForKey(array &$a, string $b) {
-    foreach ($a as $key => $value) {
-        try {
-            if (!array_key_exists($GLOBALS['b'], $value)) {
-                throw new Exception('неправильный индекс массива: ' . $key);
+    function mySortForKey(array &$a, string $b) {
+        foreach ($a as $key => $value) {
+            try {
+                if (!array_key_exists($b, $value)) {
+                    throw new Exception('неправильный индекс массива: ' . $key);
+                }
+            } catch (Exception $e) {
+                echo $e->getMessage();
+                return;
             }
-        } catch (Exception $e) {
-            echo $e->getMessage();
-            return;
         }
+        function sortForKey($key) {
+            return function ($a, $b) use ($key) {
+                return $a[$key] <=> $b[$key];
+            };
+        }
+        usort($a, sortForKey($b));
+        return $a;
     }
-    usort($a, function($a, $b) {
-        return $a[$GLOBALS['b']] <=> $b[$GLOBALS['b']];
-    });
-    return $a;
-}
 
 echo "<h4>Массив до</h4>";
 var_export($a);
