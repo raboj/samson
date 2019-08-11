@@ -1,13 +1,9 @@
 <?php
 
-ini_set('error_reporting', E_ALL);
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-
 require_once 'Class/Db.php';
-$Pdo=Db::getPdo();
+$Pdo = Db::getPdo();
 
-//echo '<pre>';
+echo '<pre>';
 
 echo '<p>convertString($a, $b). Результат ее выполнение: если в строке $a содержится 2 и более подстроки $b, 
 то во втором месте заменить подстроку $b на инвертированную подстроку.</p><br>';
@@ -63,7 +59,7 @@ echo "<p>mySortForKey(\$a, \$b). \$a – двумерный массив вид�
 $a = [['a' => 2, 'b' => 1], ['a' => 1, 'b' => 3], ['a' => 4, 'b' => 2]];
 $b = 'b';
 
-    function mySortForKey(array &$a, string $b) {
+function mySortForKey(array &$a, string $b) {
     foreach ($a as $key => $value) {
         try {
             if (!array_key_exists($b, $value)) {
@@ -94,7 +90,7 @@ var_export(mySortForKey($a, $b));
 echo "<hr>";
 
 echo '<p>Реализовать функцию importXml($a). $a – путь к xml файлу (структура файла приведена ниже). 
-Результат ее выполнения: прочитать файл $a и импортировать его в созданную БД.</p><br>';
+Результат ее выполнения: прочитать файл $a и импортировать его в созданную БД.</p>';
 
 function importXml(string $a) {
     $countProduct = 0;
@@ -107,27 +103,27 @@ function importXml(string $a) {
     foreach ($products->Товар as $product) {
         //проеряем существует ли товар с таким кодом
         $sql = "SELECT * FROM `a_product` WHERE `code`=?";
-        $productExist = Db::preExec($sql, (array) $product['Код']);
+        $productExist = Db::preExec($sql, [$product->attributes()->Код]);
         if ($productExist) {
             echo "<p style=\"color:red\">Товар \"{$productExist[0]['name']}\" с кодом \"{$productExist[0]['code']}\" уже существует и не был добавлен<p>";
         } else {
-            $Pdo->beginTransaction();
+            Db::getPdo()->beginTransaction();
             try {
                 //добавляем товар
-                $producrArr = [NULL, $product['Код'], $product['Название']];
+                $producrArr = [NULL, $product->attributes()->Код, $product->attributes()->Название];
                 $sql = "INSERT INTO `a_product` (`id`, `code`, `name`) VALUES (?, ?, ?)";
                 Db::preExec($sql, $producrArr);
-                $idProduct = $Pdo->lastInsertId();
+                $idProduct = Db::getPdo()->lastInsertId();
                 // добавляем цены
                 foreach ($product->Цена as $prices) {
-                    $priceArr = [$idProduct, $prices[0]['Тип'], $prices];
+                    $priceArr = [$idProduct, $prices->attributes()->Тип, $prices];
                     $sql = "INSERT INTO `a_price`(`id_product`, `price_type`, `price`) VALUES (?, ?, ?)";
                     Db::preExec($sql, $priceArr);
                 }
                 //добавляем свойства
                 foreach ($product->Свойства as $propertys) {
                     foreach ($propertys as $property => $propertyValue) {
-                        $propertyAttr = current((array) $propertyValue->attributes());
+                        $propertyAttr = current($propertyValue->attributes());
                         if (is_array($propertyAttr)) {
                             $key = key($propertyAttr);
                             $value = current($propertyAttr);
@@ -135,7 +131,7 @@ function importXml(string $a) {
                             $key = '';
                             $value = '';
                         }
-                        $propertyArr = [$idProduct, $property, (string) $propertyValue, $key, $value];
+                        $propertyArr = [$idProduct, $property, $propertyValue, $key, $value];
                         $sql = "INSERT INTO `a_property`(`id_product`, `property`, `value`, `atribut_property`, `atribut_value`) VALUES (?, ?, ?, ?, ?)";
                         Db::preExec($sql, $propertyArr);
                     }
@@ -144,7 +140,7 @@ function importXml(string $a) {
                 $idParentCategory = '';
                 foreach ($product->Разделы->Раздел as $category) {
                     // проверяем, существует ли категория 
-                    $sql = "SELECT * FROM `a_category` WHERE `name`='" . (string) $category . "'";
+                    $sql = "SELECT * FROM `a_category` WHERE `name`='" . $category . "'";
                     $categoryTb = Db::preExec($sql);
                     if ($categoryTb) {
                         // берем id для связи и запоминаем ее как родителя
@@ -153,9 +149,9 @@ function importXml(string $a) {
                     } else {
                         $sql = "INSERT INTO `a_category`(`id`, `id_parent`, `code`, `name`) "
                                 . "VALUES (NULL,?,'',?)";
-                        $categoryArr = [$idParentCategory, (string) $category];
+                        $categoryArr = [$idParentCategory, $category];
                         Db::preExec($sql, $categoryArr);
-                        $idCategory = $Pdo->lastInsertId();
+                        $idCategory = Db::getPdo()->lastInsertId();
                         // сохраняем id родителя для следующего раздела товара
                         $idParentCategory = $idCategory;
                     };
@@ -165,10 +161,10 @@ function importXml(string $a) {
                 }
             } catch (Exception $e) {
                 echo "Ошибка: " . $e->getMessage();
-                $Pdo->rollBack();
+                Db::getPdo()->rollBack();
             }
 
-            if ($Pdo->commit() == TRUE) {
+            if (Db::getPdo()->commit() == TRUE) {
                 $countProduct++;
             }
         }
@@ -246,12 +242,16 @@ function exportXml(string $a, int $keyCat) {
     $arrCategoryTree = (getTree($arrCategoryTree));
     $arrCategory = (getCategory($arrCategoryTree, $keyCat));
 
-    $strCategoryId = rtrim(getCategoryId($arrCategory), ',');
-// выбираем товары
-    $sql = "SELECT * FROM `a_product` "
-            . "LEFT JOIN  `a_product_category` ON `a_product`.`id` = `a_product_category`.`id_product` "
-            . "WHERE `a_product_category`.`id_category` IN ($strCategoryId)";
-//    $sql = "SELECT `id`,`name`, `code` FROM `a_product`";
+    if (empty($arrCategory)) {
+        echo "<p style=\"color:red\">Нет категории с таки ID, экпортируем все товары</p>";
+        $sql = "SELECT * FROM `a_product` ";
+    } else {
+        $strCategoryId = rtrim(getCategoryId($arrCategory), ',');
+        $sql = "SELECT * FROM `a_product` "
+                . "LEFT JOIN  `a_product_category` ON `a_product`.`id` = `a_product_category`.`id_product` "
+                . "WHERE `a_product_category`.`id_category` IN ($strCategoryId)";
+    }
+
     $arrProduct = Db::preExec($sql);
 
     for ($i = 0; $i < count($arrProduct); $i++) {
@@ -270,47 +270,71 @@ function exportXml(string $a, int $keyCat) {
                 . "WHERE a_product_category.id_product={$arrProduct[$i]['id']}";
         $xmlArr[$i]['category'] = (Db::preExec($sql));
     }
-    // создаем XML
-    $xml_header = '<?xml version="1.0" encoding="UTF-8"?><Товары></Товары>';
-    $xml = new SimpleXMLElement($xml_header, null, false);
+
+    $dom = new DomDocument("1.0", "windows-1251");
+    $productsRoot = $dom->createElement('Товары');
+    $dom->appendChild($productsRoot);
     for ($i = 0; $i < count($xmlArr); $i++) {
-        $xml->addChild("Товар");
-        $xml->Товар[$i]->addAttribute('Код', $xmlArr[$i]['product']['code']);
-        $xml->Товар[$i]->addAttribute('Название', $xmlArr[$i]['product']['name']);
+        $productElem = $dom->createElement("Товар");
+        $productsRoot->appendChild($productElem);
+        $prodAttrCode = $dom->createAttribute("Код");
+        $productElem->appendChild($prodAttrCode);
+        $priceValue = $dom->createTextNode($xmlArr[$i]['product']['code']);
+        $prodAttrCode->appendChild($priceValue);
+        $prodAttrCode = $dom->createAttribute("Название");
+        $productElem->appendChild($prodAttrCode);
+        $priceValue = $dom->createTextNode($xmlArr[$i]['product']['name']);
+        $prodAttrCode->appendChild($priceValue);
+
         for ($k = 0; $k < count($xmlArr[$i]['price']); $k++) {
-            $xml->Товар[$i]->addChild("Цена", $xmlArr[$i]['price'][$k]['price']);
-            $xml->Товар[$i]->Цена[$k]->addAttribute('Тип', $xmlArr[$i]['price'][$k]['price_type']);
+            $productPrice = $dom->createElement("Цена");
+            $productElem->appendChild($productPrice);
+            $productPriceText = $dom->createTextNode($xmlArr[$i]['price'][$k]['price']);
+            $productPrice->appendChild($productPriceText);
+            $prodAttrPrice = $dom->createAttribute("Тип");
+            $productPrice->appendChild($prodAttrPrice);
+            $priceValue = $dom->createTextNode($xmlArr[$i]['price'][$k]['price_type']);
+            $prodAttrPrice->appendChild($priceValue);
         }
-        $xml->Товар[$i]->addChild("Свойства");
+
+        $productProrertys = $dom->createElement("Свойства");
+        $productElem->appendChild($productProrertys);
+
         for ($k = 0; $k < count($xmlArr[$i]['property']); $k++) {
-            $xml->Товар[$i]->Свойства->addChild($xmlArr[$i]['property'][$k]['property'], $xmlArr[$i]['property'][$k]['value']);
-            $prpTmp = $xmlArr[$i]['property'][$k]['property'];
+            $productProrerty = $dom->createElement($xmlArr[$i]['property'][$k]['property']);
+            $productProrertys->appendChild($productProrerty);
+            $productProrertyText = $dom->createTextNode($xmlArr[$i]['property'][$k]['value']);
+            $productProrerty->appendChild($productProrertyText);
+
             if ($xmlArr[$i]['property'][$k]['atribut_property']) {
-                $xml->Товар[$i]->Свойства->$prpTmp->addAttribute($xmlArr[$i]['property'][$k]['atribut_property'], $xmlArr[$i]['property'][$k]['atribut_value']);
+                $productProrertyAttr = $dom->createAttribute($xmlArr[$i]['property'][$k]['atribut_property']);
+                $productProrerty->appendChild($productProrertyAttr);
+                $productProrertyAttrVal = $dom->createTextNode($xmlArr[$i]['property'][$k]['atribut_value']);
+                $productProrertyAttr->appendChild($productProrertyAttrVal);
             }
         }
-        //добавляем разделы
-        $xml->Товар[$i]->addChild("Разделы");
+
+        $productCategorys = $dom->createElement("Разделы");
+        $productElem->appendChild($productCategorys);
+
         for ($k = 0; $k < count($xmlArr[$i]['category']); $k++) {
-            $xml->Товар[$i]->Разделы->addChild('Раздел', $xmlArr[$i]['category'][$k]['name']);
+            // create child element
+            $productCategory = $dom->createElement('Раздел');
+            $productCategorys->appendChild($productCategory);
+            // create text node
+            $productCategoryText = $dom->createTextNode($xmlArr[$i]['category'][$k]['name']);
+            $productCategory->appendChild($productCategoryText);
         }
     }
-    //сохраняем
-    if (!$xml->saveXML($a)) {
+
+    if (!$dom->save($a)) {
         echo "<p style=\"color:red\">Не удалось сохранить XML в файл \"$a\"</p>";
     } else {
         echo "<p>Данные сохранены в файл \"$a\"</p>";
     };
 }
 
-exportXml('exportFromDb.xml', '201');
+exportXml('exportFromDb.xml', '210');
 
-
-//    Создать в БД таблицу a_property с колонками для хранения свойства товаров: товар, значение свойства. 
-//    В образце XML есть "имя свойства" и "значение свойства", я еще добавил id_product
-//    Создать в БД таблицу a_category с колонками для хранения рубрик: ид, код, название.
-//    что хранить в 'a_category'.'код'? В XML данных нет...
-// добавить в свойство еденицу измерения <Белизна ЕдИзм="%">100</Белизна>, в структуре БД этого нет((
-// кодироваку оставил UTF-8, какие-то проблемы, возможно у меня на машине...
 
 
