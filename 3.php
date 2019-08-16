@@ -1,6 +1,11 @@
 <?php
 namespace Test3;
 
+//показывать все ошибки
+ini_set('error_reporting', E_ALL);
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+
 class newBase
 {
     static private $count = 0;
@@ -19,7 +24,8 @@ class newBase
         $this->name = $name;
         self::$arSetName[] = $this->name;
     }
-    private $name;
+    // решил изменить модификатор доступа privat to protected
+    protected $name;
     /**
      * @return string
      */
@@ -52,13 +58,15 @@ class newBase
      */
     public function getSave(): string
     {
-        $value = serialize($value);
+        // add $this->
+        $value = serialize($this->value);
         return $this->name . ':' . sizeof($value) . ':' . $value;
     }
     /**
      * @return newBase
      */
-    static public function load(string $value): newBase
+    // убрал : newBase
+    static public function load(string $value)
     {
         $arValue = explode(':', $value);
         return (new newBase($arValue[0]))
@@ -91,12 +99,12 @@ class newView extends newBase
     }
     private function setSize()
     {
-        if (is_subclass_of($this->value, "Test3\newView")) {
-            $this->size = parent::getSize() + 1 + strlen($this->property);
-        } elseif ($this->type == 'test') {
-            $this->size = parent::getSize();
-        } else {
-            $this->size = strlen($this->value);
+            if (is_subclass_of($this->value, "Test3\newView")) {
+                $this->size = parent::getSize() + 1 + strlen($this->property);
+            } elseif ($this->type == 'test') {
+                $this->size = parent::getSize();
+            } else {
+                $this->size = strlen($this->value);
         }
     }
     /**
@@ -112,7 +120,8 @@ class newView extends newBase
     public function getName(): string
     {
         if (empty($this->name)) {
-            throw new Exception('The object doesn\'t have name');
+            //Class 'Test3\Exception' not found, думал что Exception в пространстве имен Test3
+            throw new \Exception('The object doesn\'t have name');
         }
         return '"' . $this->name  . '": ';
     }
@@ -154,35 +163,47 @@ class newView extends newBase
     /**
      * @return newView
      */
-    static public function load(string $value): newBase
+    static public function load(string $value)
     {
+        
         $arValue = explode(':', $value);
-        return (new newBase($arValue[0]))
-            ->setValue(unserialize(substr($value, strlen($arValue[0]) + 1
-                + strlen($arValue[1]) + 1), $arValue[1]))
-            ->setProperty(unserialize(substr($value, strlen($arValue[0]) + 1
-                + strlen($arValue[1]) + 1 + $arValue[1])))
-            ;
+       $loadObj= new newView($arValue[0]);
+       
+       // вложенный объект 
+       $objValStr=unserialize(substr($value, strlen($arValue[0]) + 1 + strlen($arValue[1]) + 1), [$arValue[1]]);
+       $arValue = explode(':', $objValStr);
+       $objVal= new newBase($arValue[0]);
+       $objVal->setValue(unserialize(substr($objValStr, strlen($arValue[0]) + 1 + strlen($arValue[1]) + 1), [$arValue[1]]));
+       $loadObj->setValue($objVal);
+       
+       $arValue = explode(';', $value);
+       $loadObj->setProperty(unserialize($arValue[2].';'));
+        
+        return $loadObj;
+
     }
 }
 function gettype($value): string
 {
+//    почему gettype()? может \gettype? что вообще она должна возвращать и почему сделана отдельно, а не в методе?
     if (is_object($value)) {
         $type = get_class($value);
         do {
-            if (strpos($type, "Test3\newBase") !== false) {
+            if (strpos($type, "Test3\newBase") === false) {
                 return 'test';
             }
         } while ($type = get_parent_class($type));
     }
-    return gettype($value);
+//    return gettype($value);
+    return 'some type';
 }
 
 
 $obj = new newBase('12345');
 $obj->setValue('text');
 
-$obj2 = new \Test3\newView('O9876');
+// что-то со значением O9876 - первый символ не ноль 0, а О
+$obj2 = new \Test3\newView('09876');
 $obj2->setValue($obj);
 $obj2->setProperty('field');
 $obj2->getInfo();
@@ -190,6 +211,9 @@ $obj2->getInfo();
 $save = $obj2->getSave();
 
 $obj3 = newView::load($save);
+//необходимо восстановить $obj2, т.к. при сохранении был сериализовано его value, 
+//которое  являлось объектом
+$obj2 = newView::load($save);
 
 var_dump($obj2->getSave() == $obj3->getSave());
 
