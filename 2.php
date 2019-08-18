@@ -3,7 +3,7 @@
 require_once 'Class/Db.php';
 $Pdo = Db::getPdo();
 
-echo '<pre>';
+//echo '<pre>';
 
 
 echo '<p>convertString($a, $b). Результат ее выполнение: если в строке $a содержится 2 и более подстроки $b, 
