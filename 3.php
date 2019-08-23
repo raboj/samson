@@ -22,7 +22,8 @@ class newBase {
             }
             $name = self::$count;
         }
-        $this->name = $name;
+        // должно возвращать строку
+        $this->name = strval($name);
         self::$arSetName[] = $this->name;
     }
 
@@ -49,26 +50,32 @@ class newBase {
     }
 
     public function __sleep() {
-        return ['value'];
+        // добавил свойство 'name'
+        return ['name', 'value'];
     }
 
     /**
      * @return string
      */
-    public function getSave(): string {
-        // $value to $this->value
-        $value = serialize($this->value);
-        return $this->name . ':' . sizeof($value) . ':' . $value;
+    public function getSave($TempObj = null): string {
+        // если нужно сохранить объект не типа 'test'
+        if ($TempObj === null) {
+            $TempObj = $this;
+        }
+        $value = serialize($TempObj);
+        //sizeof to strlen
+        return $TempObj->name . ':' . strlen($value) . ':' . $value;
     }
 
     /**
      * @return newBase
      */
     // убрал : newBase, т.к. в доченем нужно возвращать newView
+    // не совсем понятно, нужен ли второй параметр unserialize, 
+    // оставил, но лучше бы удалить
     static public function load(string $value) {
         $arValue = explode(':', $value);
-        return (new newBase($arValue[0]))
-                        ->setValue(unserialize(substr($value, strlen($arValue[0]) + 1 + strlen($arValue[1]) + 1), $arValue[1]));
+        return unserialize(substr($value, strlen($arValue[0]) + 1 + strlen($arValue[1]) + 1), [$arValue[4]]);
     }
 
 }
@@ -94,8 +101,7 @@ class newView extends newBase {
     }
 
     private function setType() {
-        // gettype() переименовал  в getTypeVal() и сделал методом
-        $this->type = self::getTypeVal($this->value);
+        $this->type = gettype($this->value);
     }
 
     private function setSize() {
@@ -104,7 +110,7 @@ class newView extends newBase {
         } elseif ($this->type == 'test') {
             $this->size = parent::getSize();
         } else {
-            $this->size = parent::getSize();
+            $this->size = strlen($this->value);
         }
     }
 
@@ -112,7 +118,8 @@ class newView extends newBase {
      * @return string
      */
     public function __sleep() {
-        return ['property'];
+        // добавил 'type', 'size', 'name', 'value',
+        return ['type', 'size', 'property', 'name', 'value',];
     }
 
     /**
@@ -156,49 +163,42 @@ class newView extends newBase {
      * @return string
      */
     public function getSave(): string {
+        // решил добавить промежуточный объект $TempObj, чтобы не изменять оригинал
         if ($this->type == 'test') {
-            $this->value = $this->value->getSave();
+            $TempObj = clone $this;
+            $TempObj->value = $TempObj->value->getSave($TempObj->value);
+            return parent::getSave($TempObj);
+        } else {
+            // удалил . serialize($this->property)
+            return parent::getSave();
         }
-        return parent::getSave() . serialize($this->property);
     }
 
     /**
      * @return newView
      */
     static public function load(string $value): newView {
-        // решил переписать метод по другому
-        $arValue = explode(':', $value);
-        $loadObj = new newView($arValue[0]);
-        $objValStr = unserialize(substr($value, strlen($arValue[0]) + 1 + strlen($arValue[1]) + 1), [$arValue[1]]);
-
-        $arValue = explode(':', $objValStr);
-        $objVal = new newBase($arValue[0]);
-
-        $objVal->setValue(unserialize(substr($objValStr, strlen($arValue[0]) + 1 + strlen($arValue[1]) + 1), [$arValue[1]]));
-        $loadObj->setValue($objVal);
-
-        $arValue = explode(';', $value);
-        $loadObj->setProperty(unserialize($arValue[2] . ';'));
-
-        return $loadObj;
-    }
-
-    // gettype() to getTypeVal(), gettype - функция PHP, в этом namespace работает
-    // но, лучше переименовать и сделать методом newViwe
-    static public function getTypeVal($value): string {
-        if (is_object($value)) {
-            $type = get_class($value);
-            do {
-                // пол логике понял, что должно быть так !== to ===
-                if (strpos($type, "Test3\newBase") === false) {
-                    return 'test';
-                }
-            } while ($type = get_parent_class($type));
+        // все нужное уже есть в родительском классе, решил сделать так
+        $tempObj = parent::load($value);
+        // при условии, что только обект тапа 'test' может содержать вложенный объект
+        if ($tempObj->type == 'test') {
+            $tempObj->value = parent::load($tempObj->value);
         }
-        // пол логике понял, что должно быть так gettype() to \gettype()
-        return \gettype($value);
+        return $tempObj;
     }
 
+}
+
+function gettype($value): string {
+    if (is_object($value)) {
+        $type = get_class($value);
+        do {
+            if (strpos($type, "Test3\newBase") === false) {
+                return 'test';
+            }
+        } while ($type = get_parent_class($type));
+    }
+    return \gettype($value);
 }
 
 $obj = new newBase('12345');
@@ -206,16 +206,13 @@ $obj->setValue('text');
 
 // что-то со значением O9876 - первый символ не ноль 0, а О
 $obj2 = new \Test3\newView('09876');
-$obj2->setValue($obj);
+$obj2->setValue('$obj');
 $obj2->setProperty('field');
 $obj2->getInfo();
 
 $save = $obj2->getSave();
 
 $obj3 = newView::load($save);
-//необходимо восстановить $obj2, т.к. при сохранении был сериализовано его value, 
-//которое  являлось объектом, не совсем понято для чего 
-$obj2 = newView::load($save);
 
 var_dump($obj2->getSave() == $obj3->getSave());
 
