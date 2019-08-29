@@ -212,12 +212,9 @@ $obj2->setProperty('field');
 $obj2->getInfo();
 
 $save = $obj2->getSave();
-var_dump($save);
 
 $obj3 = newView::load($save);
 
 var_dump($obj2->getSave() == $obj3->getSave());
 
-var_dump($obj);
-var_dump($obj2);
-var_dump($obj3);
+
