@@ -3,7 +3,6 @@
 namespace Test3;
 
 // в классах свойства поднял вверх, тяжело их искать пежду методами
-// убрал из 
 class newBase {
 
     static private $count = 0;
@@ -167,10 +166,10 @@ class newView extends newBase {
         if ($this->type == 'test') {
             $TempObj = clone $this;
             $TempObj->value = $TempObj->value->getSave($TempObj->value);
-            return parent::getSave($TempObj);
+            return parent::getSave($TempObj) . serialize($this->property);
+            ;
         } else {
-            // удалил . serialize($this->property)
-            return parent::getSave();
+            return parent::getSave() . serialize($this->property);
         }
     }
 
@@ -179,6 +178,7 @@ class newView extends newBase {
      */
     static public function load(string $value): newView {
         // все нужное уже есть в родительском классе, решил сделать так
+        // unserialize propety нет смысла, оно уже восстановлено 
         $tempObj = parent::load($value);
         // при условии, что только обект тапа 'test' может содержать вложенный объект
         if ($tempObj->type == 'test') {
@@ -193,12 +193,13 @@ function gettype($value): string {
     if (is_object($value)) {
         $type = get_class($value);
         do {
-            if (strpos($type, "Test3\newBase") === false) {
+            // исправил кавычки
+            if (strpos($type, 'Test3\newBase') !== false) {
                 return 'test';
             }
         } while ($type = get_parent_class($type));
     }
-    return \gettype($value);
+    return gettype($value);
 }
 
 $obj = new newBase('12345');
@@ -206,13 +207,17 @@ $obj->setValue('text');
 
 // что-то со значением O9876 - первый символ не ноль 0, а О
 $obj2 = new \Test3\newView('09876');
-$obj2->setValue('$obj');
+$obj2->setValue($obj);
 $obj2->setProperty('field');
 $obj2->getInfo();
 
 $save = $obj2->getSave();
+var_dump($save);
 
 $obj3 = newView::load($save);
 
 var_dump($obj2->getSave() == $obj3->getSave());
 
+var_dump($obj);
+var_dump($obj2);
+var_dump($obj3);
