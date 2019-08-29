@@ -167,7 +167,6 @@ class newView extends newBase {
             $TempObj = clone $this;
             $TempObj->value = $TempObj->value->getSave($TempObj->value);
             return parent::getSave($TempObj) . serialize($this->property);
-            ;
         } else {
             return parent::getSave() . serialize($this->property);
         }
@@ -216,5 +215,3 @@ $save = $obj2->getSave();
 $obj3 = newView::load($save);
 
 var_dump($obj2->getSave() == $obj3->getSave());
-
-
